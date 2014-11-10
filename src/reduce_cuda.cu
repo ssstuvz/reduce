@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <time.h>
 
+#define USE_DOUBLES
+
 #ifdef USE_DOUBLES
 typedef double my_float;
 #else
@@ -16,7 +18,7 @@ const size_t NofThreads = 1024;
 
 //const size_t NofS=12;
 
-__global__ void MyReduce(float *d_Array, float *d_ReducedArray, int NofS, int NofThreads)
+__global__ void MyReduce(my_float *d_Array, my_float *d_ReducedArray, int NofS, int NofThreads)
 {
     int my_x=threadIdx.x;
     int MyNofS = NofS/NofThreads; // assume this is correct
@@ -24,12 +26,24 @@ __global__ void MyReduce(float *d_Array, float *d_ReducedArray, int NofS, int No
     int n=0;
 
     my_float result=0.0;
-    for (int n=0; n<MyNofS; n++)
+    for ( n=0; n<MyNofS; n++)
     {
         result+=d_Array[n+MyStart];
     }
     d_ReducedArray[my_x]=result;
 }
+
+my_float Last_Reduce(my_float *Array, int NofS)
+{
+    my_float result=0.0;
+	int n=0;
+    for (n=0; n<NofS; n++)
+    {
+        result+=Array[n];
+    }
+    return result;
+}
+
 
 // serial part
 my_float Reduce_Double(my_float *InputArray, size_t NofS)
@@ -106,13 +120,15 @@ int main(int arg1, char ** arg2)
         exit(EXIT_FAILURE);
     }
 
-
+	double result=Last_Reduce(ReducedArray, 1024);
 
 	time_end=clock();
 
 
 	my_float elapsed_time = (time_end-time_start)/(my_float)CLOCKS_PER_SEC ;
     printf("Time elapsed = %f seconds\n", elapsed_time);
+	printf("Temp value = %f\n", ReducedArray[1023]);
+	printf("Reduced to %f\n", result);
 
 	free(Array);
     cudaFree(d_Array);

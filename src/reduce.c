@@ -3,6 +3,7 @@
 #include <time.h>
 
 const size_t NofS = 1<<20;
+//const size_t NofS = 1024;
 
 int main(int arg1, char ** arg2)
 {
@@ -21,7 +22,7 @@ int main(int arg1, char ** arg2)
 
     for(n=0; n<NofS; n++)
     {
-    	Array[n]=n*0.1;
+    	Array[n]=n*0.001;
     	//printf("%e ", Array[n]);
     }
     printf("\n");
@@ -38,7 +39,7 @@ int main(int arg1, char ** arg2)
 
 	time_end=clock();
 
-	printf("Reduced to %e\n", result);
+	printf("Reduced to %f\n", result);
 
 	double elapsed_time = (time_end-time_start)/(double)CLOCKS_PER_SEC ;
 	printf("Time elapsed = %f seconds\n", elapsed_time);
