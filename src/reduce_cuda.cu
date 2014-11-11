@@ -19,6 +19,30 @@ const size_t NofThreads = 1024;
 
 //const size_t NofS=12;
 
+__global__ void ReduceRalf(my_float *d_Array, my_float *d_ReducedArray, int N,int current)
+{
+    int my_x = threadIdx.x+blockIdx.x*blockDim.x+current;
+    int tx=threadIdx.x;
+    
+    __shared__ my_float sm[1024];
+    my_float cur=0.0;
+    if (my_x<N)
+        cur=d_Array[my_x];
+    if (my_x+blockDim.x*gridDim.x<N)
+        cur+=d_Array[my_x+blockDim.x*gridDim.x];
+ 
+    sm[tx]=cur;
+    __syncthreads();
+    for (int i=blockDim.x/2;i>0;i/=2)
+    {
+        __syncthreads();
+        if (tx<i)
+           sm[tx]=sm[tx]+sm[tx+i];
+    }
+    if (tx==0) d_ReducedArray[blockIdx.x]=sm[0];
+    
+}
+
 __global__ void MyReduce(my_float *d_Array, my_float *d_ReducedArray, int NofS, int NofThreads)
 {
     int my_x=threadIdx.x;
@@ -116,7 +140,8 @@ int main(int arg1, char ** arg2)
     // reduce
 
     time_start=clock();
-    MyReduce<<<1,NofThreads>>>(d_Array, d_ReducedArray, NofS, NofThreads);
+//    MyReduce<<<1,NofThreads>>>(d_Array, d_ReducedArray, NofS, NofThreads);
+    ReduceRalf<<<1024,NofThreads>>>(d_Array,d_ReducedArray,NofS,0);
     err = cudaMemcpy(ReducedArray, d_ReducedArray, NofThreads*sizeof(my_float), cudaMemcpyDeviceToHost);
 
     if (err != cudaSuccess)
