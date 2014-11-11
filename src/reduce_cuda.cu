@@ -41,7 +41,6 @@ __global__ void ReduceRalf(my_float *d_Array, my_float *d_ReducedArray, int N,in
         cur+=d_Array[my_x+blockDim.x*gridDim.x];
  
     sm[tx]=cur;
-    __syncthreads();
     for (int i=blockDim.x/2;i>0;i/=2)
     {
         __syncthreads();
@@ -144,13 +143,19 @@ int main(int arg1, char ** arg2)
     my_float *ReducedArray;
     ReducedArray=(my_float *)malloc(NofThreads*sizeof(my_float));
 
+    cudaEvent_t start,end; 
+    cudaEventCreate(&start);
+    cudaEventCreate(&end);
     
 
     // reduce
 
-    time_start=clock();
+//    time_start=clock();
+    cudaEventRecord(start);
 //    MyReduce<<<1,NofThreads>>>(d_Array, d_ReducedArray, NofS, NofThreads);
     ReduceRalf<<<1024,NofThreads>>>(d_Array,d_ReducedArray,NofS,0);
+    cudaEventRecord(end);
+    cudaEventSynchronize(end);
     err = cudaMemcpy(ReducedArray, d_ReducedArray, NofThreads*sizeof(my_float), cudaMemcpyDeviceToHost);
 
     if (err != cudaSuccess)
@@ -168,7 +173,8 @@ int main(int arg1, char ** arg2)
 	fwrite(ReducedArray, NofThreads, sizeof(my_float), File2Save);
 	fclose(File2Save);
 
-	double elapsed_time = (time_end-time_start)/(my_float)CLOCKS_PER_SEC ;
+	float elapsed_time;//(time_end-time_start)/(my_float)CLOCKS_PER_SEC ;
+        cudaEventElapsedTime(&elapsed_time,start,end);
     printf("Time elapsed = %f seconds\n", elapsed_time);
 	printf("Temp value = %f\n", (float)ReducedArray[3]);
 	printf("Reduced to %f\n", (float)result);
