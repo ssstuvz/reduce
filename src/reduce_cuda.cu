@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 
-#define USE_DOUBLES
+//#define USE_DOUBLES
 
 #ifdef USE_DOUBLES
 typedef double my_float;
@@ -13,7 +13,8 @@ typedef float my_float;
 // convention   - any array without d_* is located on CPU
 //              - any array with d_ is on device (GPU)
 
-const size_t NofS = 1<<20;
+//const size_t NofS = 1<<20;
+const size_t NofS = 1048576;
 const size_t NofThreads = 1024;
 
 //const size_t NofS=12;
@@ -21,16 +22,20 @@ const size_t NofThreads = 1024;
 __global__ void MyReduce(my_float *d_Array, my_float *d_ReducedArray, int NofS, int NofThreads)
 {
     int my_x=threadIdx.x;
-    int MyNofS = NofS/NofThreads; // assume this is correct
-    int MyStart = MyNofS * my_x;
-    int n=0;
-
-    my_float result=0.0;
+    size_t MyNofS = NofS/NofThreads; // assume this is correct
+    size_t MyStart = MyNofS * my_x;
+    size_t n=0;
+	/*my_float Dummy=549755289600.0f;
+	printf("%f\n", Dummy);*/
+    my_float result=0.0f;
     for ( n=0; n<MyNofS; n++)
     {
+		if((n+MyStart)>=NofS) printf("pretty bad");
         result+=d_Array[n+MyStart];
     }
-    d_ReducedArray[my_x]=result;
+	//printf("%f\n", result);
+	if(my_x==1023) printf("1023 result = %f", result);    
+	d_ReducedArray[my_x]=result;
 }
 
 my_float Last_Reduce(my_float *Array, int NofS)
@@ -72,12 +77,12 @@ int main(int arg1, char ** arg2)
 
     for(n=0; n<NofS; n++)
     {
-    	Array[n]=n;
+    	Array[n]=(my_float)n;
     }
 
     // allocate memory on device
     my_float *d_Array = NULL;
-    err = cudaMalloc((void **)&d_Array, NofS);
+    err = cudaMalloc((void **)&d_Array, NofS*sizeof(my_float));
 
     if (err != cudaSuccess)
     {
@@ -86,7 +91,7 @@ int main(int arg1, char ** arg2)
     }
 
     // copy the array to device
-    err = cudaMemcpy(d_Array, Array, NofS, cudaMemcpyHostToDevice);
+    err = cudaMemcpy(d_Array, Array, NofS*sizeof(my_float), cudaMemcpyHostToDevice);
 
     if (err != cudaSuccess)
     {
@@ -95,7 +100,7 @@ int main(int arg1, char ** arg2)
     }
 
     my_float *d_ReducedArray;
-    err = cudaMalloc((void **)&d_ReducedArray, NofThreads);
+    err = cudaMalloc((void **)&d_ReducedArray, NofThreads*sizeof(my_float));
 
     if (err != cudaSuccess)
     {
@@ -111,8 +116,8 @@ int main(int arg1, char ** arg2)
     // reduce
 
     time_start=clock();
-    MyReduce<<<1,1024>>>(d_Array, d_ReducedArray, NofS, NofThreads);
-    err = cudaMemcpy(ReducedArray, d_ReducedArray, NofThreads, cudaMemcpyDeviceToHost);
+    MyReduce<<<1,NofThreads>>>(d_Array, d_ReducedArray, NofS, NofThreads);
+    err = cudaMemcpy(ReducedArray, d_ReducedArray, NofThreads*sizeof(my_float), cudaMemcpyDeviceToHost);
 
     if (err != cudaSuccess)
     {
@@ -120,15 +125,22 @@ int main(int arg1, char ** arg2)
         exit(EXIT_FAILURE);
     }
 
-	double result=Last_Reduce(ReducedArray, 1024);
+	my_float result=Last_Reduce(ReducedArray, NofThreads);
 
 	time_end=clock();
 
+	FILE * File2Save = fopen("data.dat", "wb");
+
+	fwrite(ReducedArray, NofThreads, sizeof(my_float), File2Save);
+	fclose(File2Save);
 
 	my_float elapsed_time = (time_end-time_start)/(my_float)CLOCKS_PER_SEC ;
     printf("Time elapsed = %f seconds\n", elapsed_time);
-	printf("Temp value = %f\n", ReducedArray[1023]);
+	printf("Temp value = %f\n", ReducedArray[3]);
 	printf("Reduced to %f\n", result);
+
+	my_float Dummy=549755289600.0;
+	printf("%f\n", Dummy);
 
 	free(Array);
     cudaFree(d_Array);
