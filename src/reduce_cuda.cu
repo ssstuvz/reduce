@@ -7,7 +7,7 @@
 #ifdef USE_DOUBLES
 typedef double my_float;
 #else
-typedef float my_float;
+typedef long long int my_float;
 #endif
 
 // convention   - any array without d_* is located on CPU
@@ -18,6 +18,15 @@ const size_t NofS = 1048576;
 const size_t NofThreads = 1024;
 
 //const size_t NofS=12;
+
+my_float reduce_cpu(my_float *Array,int N)
+{
+   my_float result=0.0;
+   for (int i=0;i<N;i++)
+      result+=Array[i];
+   return result;
+         
+}
 
 __global__ void ReduceRalf(my_float *d_Array, my_float *d_ReducedArray, int N,int current)
 {
@@ -64,7 +73,7 @@ __global__ void MyReduce(my_float *d_Array, my_float *d_ReducedArray, int NofS, 
 
 my_float Last_Reduce(my_float *Array, int NofS)
 {
-    my_float result=0.0;
+    my_float result=(my_float)0.0;
 	int n=0;
     for (n=0; n<NofS; n++)
     {
@@ -77,7 +86,7 @@ my_float Last_Reduce(my_float *Array, int NofS)
 // serial part
 my_float Reduce_Double(my_float *InputArray, size_t NofS)
 {
-    my_float result=0.0;
+    my_float result=(my_float)0.0;
     int n=0;
 
     for(n=0;n<NofS;n++)
@@ -159,13 +168,13 @@ int main(int arg1, char ** arg2)
 	fwrite(ReducedArray, NofThreads, sizeof(my_float), File2Save);
 	fclose(File2Save);
 
-	my_float elapsed_time = (time_end-time_start)/(my_float)CLOCKS_PER_SEC ;
+	double elapsed_time = (time_end-time_start)/(my_float)CLOCKS_PER_SEC ;
     printf("Time elapsed = %f seconds\n", elapsed_time);
-	printf("Temp value = %f\n", ReducedArray[3]);
-	printf("Reduced to %f\n", result);
+	printf("Temp value = %f\n", (float)ReducedArray[3]);
+	printf("Reduced to %f\n", (float)result);
 
-	my_float Dummy=549755289600.0;
-	printf("%f\n", Dummy);
+	my_float Dummy=reduce_cpu(Array,NofS);
+	printf("%f\n", (float)Dummy);
 
 	free(Array);
     cudaFree(d_Array);
