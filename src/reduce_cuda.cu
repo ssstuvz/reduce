@@ -7,7 +7,7 @@
 #ifdef USE_DOUBLES
 typedef double my_float;
 #else
-typedef float my_float;
+typedef long long int my_float;
 #endif
 
 // convention   - any array without d_* is located on CPU
@@ -18,6 +18,38 @@ const size_t NofS = 1048576;
 const size_t NofThreads = 1024;
 
 //const size_t NofS=12;
+
+my_float reduce_cpu(my_float *Array,int N)
+{
+   my_float result=0.0;
+   for (int i=0;i<N;i++)
+      result+=Array[i];
+   return result;
+         
+}
+
+__global__ void ReduceRalf(my_float *d_Array, my_float *d_ReducedArray, int N,int current)
+{
+    int my_x = threadIdx.x+blockIdx.x*blockDim.x+current;
+    int tx=threadIdx.x;
+    
+    __shared__ my_float sm[1024];
+    my_float cur=0.0;
+    if (my_x<N)
+        cur=d_Array[my_x];
+    if (my_x+blockDim.x*gridDim.x<N)
+        cur+=d_Array[my_x+blockDim.x*gridDim.x];
+ 
+    sm[tx]=cur;
+    for (int i=blockDim.x/2;i>0;i/=2)
+    {
+        __syncthreads();
+        if (tx<i)
+           sm[tx]=sm[tx]+sm[tx+i];
+    }
+    if (tx==0) d_ReducedArray[blockIdx.x]=sm[0];
+    
+}
 
 __global__ void MyReduce(my_float *d_Array, my_float *d_ReducedArray, int NofS, int NofThreads)
 {
@@ -40,7 +72,7 @@ __global__ void MyReduce(my_float *d_Array, my_float *d_ReducedArray, int NofS, 
 
 my_float Last_Reduce(my_float *Array, int NofS)
 {
-    my_float result=0.0;
+    my_float result=(my_float)0.0;
 	int n=0;
     for (n=0; n<NofS; n++)
     {
@@ -53,7 +85,7 @@ my_float Last_Reduce(my_float *Array, int NofS)
 // serial part
 my_float Reduce_Double(my_float *InputArray, size_t NofS)
 {
-    my_float result=0.0;
+    my_float result=(my_float)0.0;
     int n=0;
 
     for(n=0;n<NofS;n++)
@@ -111,12 +143,19 @@ int main(int arg1, char ** arg2)
     my_float *ReducedArray;
     ReducedArray=(my_float *)malloc(NofThreads*sizeof(my_float));
 
+    cudaEvent_t start,end; 
+    cudaEventCreate(&start);
+    cudaEventCreate(&end);
     
 
     // reduce
 
-    time_start=clock();
-    MyReduce<<<1,NofThreads>>>(d_Array, d_ReducedArray, NofS, NofThreads);
+//    time_start=clock();
+    cudaEventRecord(start);
+//    MyReduce<<<1,NofThreads>>>(d_Array, d_ReducedArray, NofS, NofThreads);
+    ReduceRalf<<<1024,NofThreads>>>(d_Array,d_ReducedArray,NofS,0);
+    cudaEventRecord(end);
+    cudaEventSynchronize(end);
     err = cudaMemcpy(ReducedArray, d_ReducedArray, NofThreads*sizeof(my_float), cudaMemcpyDeviceToHost);
 
     if (err != cudaSuccess)
@@ -134,13 +173,14 @@ int main(int arg1, char ** arg2)
 	fwrite(ReducedArray, NofThreads, sizeof(my_float), File2Save);
 	fclose(File2Save);
 
-	my_float elapsed_time = (time_end-time_start)/(my_float)CLOCKS_PER_SEC ;
-    printf("Time elapsed = %f seconds\n", elapsed_time);
-	printf("Temp value = %f\n", ReducedArray[3]);
-	printf("Reduced to %f\n", result);
+	float elapsed_time;//(time_end-time_start)/(my_float)CLOCKS_PER_SEC ;
+        cudaEventElapsedTime(&elapsed_time,start,end);
+    printf("Time elapsed = %f mseconds\n", elapsed_time);
+	printf("Temp value = %f\n", (float)ReducedArray[3]);
+	printf("Reduced to %f\n", (float)result);
 
-	my_float Dummy=549755289600.0;
-	printf("%f\n", Dummy);
+	my_float Dummy=reduce_cpu(Array,NofS);
+	printf("%f\n", (float)Dummy);
 
 	free(Array);
     cudaFree(d_Array);
