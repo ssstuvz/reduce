@@ -175,7 +175,7 @@ int main(int arg1, char ** arg2)
 
 	float elapsed_time;//(time_end-time_start)/(my_float)CLOCKS_PER_SEC ;
         cudaEventElapsedTime(&elapsed_time,start,end);
-    printf("Time elapsed = %f seconds\n", elapsed_time);
+    printf("Time elapsed = %f mseconds\n", elapsed_time);
 	printf("Temp value = %f\n", (float)ReducedArray[3]);
 	printf("Reduced to %f\n", (float)result);
 
